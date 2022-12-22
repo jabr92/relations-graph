@@ -49,7 +49,8 @@ class Node:
     def display_name(self):
         title_display = f"\nthe {self.title}" if self.title else ''
         status_display = f"\n({self.status})" if self.status else ''
-        return f"{self.first_name}{title_display}{status_display}"
+        last_display = f" {self.last_name}" if self.last_name else ''
+        return f"{self.first_name}{last_display}{title_display}{status_display}"
 
 
 class Relation:
