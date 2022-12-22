@@ -4,4 +4,4 @@
 
 - Install graphviz[https://graphviz.org/download/]
 
-- python script.py <<CSV file exported from Sheets>>
+- python script.py \<CSV file exported from Sheets\>
