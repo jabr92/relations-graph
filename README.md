@@ -1,7 +1,12 @@
 # relations-graph
- 
+
 - Install requirements.txt
 
 - Install graphviz[https://graphviz.org/download/]
 
 - python script.py \<CSV file exported from Sheets\>
+
+    # Create an admin user
+    $ flask fab create-admin
+    # Run dev server
+    $ flask run
