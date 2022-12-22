@@ -1,15 +1,14 @@
 import csv
-import graphviz
 import logging
-from typing import Dict, List, Tuple
 from collections import namedtuple, defaultdict
+from typing import Dict, List, Tuple
+
+import graphviz
 
 CSV_FILENAME = 'C:\\Users\\jabr9\\Downloads\\Stonetop Relationships - Stonetop NPCs.csv'
 CSVRow = namedtuple('CSVRow',
                     ['color_hex', 'color_type', 'type', 'title', 'first_name', 'last_name', 'status', 'relation',
-                     'relation_target', 'relation_back_ref'])
-Relation = namedtuple('Relation', ['source', 'relation', 'target', 'back_ref'])
-
+                     'relation_target', 'relation_back_ref', 'mutual'])
 logging.getLogger().setLevel(logging.DEBUG)
 
 
@@ -22,7 +21,7 @@ class Coloring:
         self._BY_TYPE[_type] = self
 
     @classmethod
-    def for_name(cls, _type):
+    def for_type(cls, _type):
         return cls._BY_TYPE[_type].hex_code
 
 
@@ -51,6 +50,14 @@ class Node:
         title_display = f"\nthe {self.title}" if self.title else ''
         status_display = f"\n({self.status})" if self.status else ''
         return f"{self.first_name}{title_display}{status_display}"
+
+
+class Relation:
+    def __init__(self, source, relation, target, mutual):
+        self.source = source
+        self.relation = relation
+        self.target = target
+        self.mutual = mutual in ('Y', 'y', 1, '1')
 
 
 def load_csv(filename) -> List[CSVRow]:
@@ -96,10 +103,21 @@ def parse_rows(rows: List[CSVRow]) -> Tuple[Dict[str, Dict[str, Node]], List[Rel
                 source=row.first_name,
                 relation=row.relation,
                 target=row.relation_target,
-                back_ref=row.relation_back_ref
+                mutual=row.mutual,
             )
             relations.append(relation)
             logging.debug(f"Added relation {relation}")
+
+            if row.relation_back_ref:
+                back = Relation(
+                    source=row.relation_target,
+                    relation=row.relation_back_ref,
+                    target=row.first_name,
+                    mutual=row.mutual
+                )
+                relations.append(back)
+                logging.debug(f"Added back relation {back}")
+
         elif row.relation or row.relation_target or row.relation_back_ref:
             logging.error(f"Problem with relation in row {row}")
 
@@ -108,21 +126,36 @@ def parse_rows(rows: List[CSVRow]) -> Tuple[Dict[str, Dict[str, Node]], List[Rel
 
 def create_graph(nodes_by_type: Dict[str, Dict[str, Node]], relations: List[Relation]) -> str:
     dot = graphviz.Digraph(name='Relations', format='png')
-
+    type_from_name = {}
     for _type, node_map in nodes_by_type.items():
         with dot.subgraph(name=_type) as s:
-            s.node_attr.update(style='filled', fillcolor=Coloring.for_name(_type))
+            s.node_attr.update(style='filled', fillcolor=Coloring.for_type(_type))
             for n in node_map.values():
+                type_from_name[n.key] = _type
                 s.node(name=n.first_name, label=n.display_name)
 
     for r in relations:
-        dot.edge(r.source, r.target, label=r.relation)
+        players = [n.key for n in nodes_by_type['Player'].values()]
+        weight = 1
+        if r.source in players:
+            weight += 2
+        if r.target in players:
+            weight += 2
+        dot.edge(
+            r.source, r.target,
+            label=r.relation,
+            weight=str(weight),
+            dir='both' if r.mutual else 'forward',
+            penwidth='4' if r.mutual else '2',
+            color=Coloring.for_type(type_from_name[r.target]),
+        )
 
     return dot.render(directory='output')
 
 
 if __name__ == '__main__':
     import sys
+
     file = sys.argv[1] if len(sys.argv) > 1 else CSV_FILENAME
     png_file = create_graph(*parse_rows(load_csv(file)))
     logging.info(f"Graph saved to {png_file}")
