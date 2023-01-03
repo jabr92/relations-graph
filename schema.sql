@@ -41,6 +41,7 @@ create table entity_relation
     relation         varchar(64) not null,
     unique (source_entity_id, target_entity_id, relation),
     active           boolean     not null default true,
+    mutual           boolean     not null default false,
     created_at       timestamp   not null default CURRENT_TIMESTAMP,
     updated_at       timestamp   not null default CURRENT_TIMESTAMP,
     check (source_entity_id <> target_entity_id)
@@ -49,19 +50,23 @@ create table entity_relation
 create index ix_relation_source_status on entity_relation (source_entity_id, active);
 create index ix_relation_target_status on entity_relation (target_entity_id, active);
 
-CREATE FUNCTION explode_entity_relations(source_id int) RETURNS SETOF int AS
+CREATE FUNCTION explode_entity_relations(primary_entity_id int) RETURNS SETOF entity_relation AS
 $$
-WITH RECURSIVE exploded AS
-                   (SELECT *
-                    FROM entity_relation e
-                    WHERE source_entity_id = $1 AND active = true
-                    UNION ALL
-                    SELECT er.*
-                    FROM entity_relation er
-                    JOIN exploded e on er.source_entity_id = e.target_entity_id)
-SELECT id
-FROM exploded
-WHERE active = true
+WITH RECURSIVE exploded AS (SELECT *
+                            FROM entity_relation e
+                            WHERE source_entity_id = $1
+                              AND active = true
+                            UNION ALL
+                            SELECT er.*
+                            FROM entity_relation er
+                                     JOIN exploded e on er.source_entity_id = e.target_entity_id
+                            WHERE er.target_entity_id != $1
+                              AND er.source_entity_id != e.source_entity_id
+                              AND er.active = true)
+SELECT *
+FROM entity_relation
+WHERE id in (SELECT DISTINCT id
+             FROM exploded)
 $$ LANGUAGE SQL;
 
 insert into entity (entity_type_code, first_name, last_name, title, status)

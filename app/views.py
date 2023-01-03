@@ -14,6 +14,14 @@ class EntityModelView(ModelView):
     edit_columns = ["title", "first_name", "last_name", "status", "entity_type"]
 
 
+class EntityRelationModelView(ModelView):
+    datamodel = SQLAInterface(EntityRelation)
+    list_columns = ["source_entity", "relation", "target_entity", "mutual"]
+    show_columns = ["source_entity", "relation", "target_entity", "mutual"]
+    add_columns = ["source_entity", "relation", "target_entity", "mutual"]
+    edit_columns = ["source_entity", "relation", "target_entity", "mutual"]
+
+
 @appbuilder.app.errorhandler(404)
 def page_not_found(e):
     return (
@@ -26,10 +34,16 @@ def page_not_found(e):
 
 db.create_all()
 
-appbuilder.add_view(
-    EntityModelView,
-    "List Datacenters",
-    icon="fa-folder-open-o",
-    category="Datacenters",
-    category_icon="fa-envelope",
-)
+
+views = {
+    "Datacenters": ("fa-database", [
+        (EntityModelView,  "List Datacenters"),
+        (EntityRelationModelView, "List Datacenter Relations"),
+    ]),
+
+}
+
+for category, views in views.items():
+    icon = views[0]
+    for view in views[1]:
+        appbuilder.add_view(view[0], view[1], category_icon=icon, category=category)

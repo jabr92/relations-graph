@@ -14,10 +14,14 @@ Base = declarative_base()
 class EntityType(Base):
     __tablename__ = 'entity_type'
     __id_map = {}
+    __name_map = {}
 
     id = Column(String(2), primary_key=True)
     color_code = Column(String(6), nullable=False)
     name = Column(String(56), nullable=False)
+
+    def __repr__(self):
+        return self.name
 
     @property
     def hex_code(self):
@@ -28,12 +32,26 @@ class EntityType(Base):
         return session.query(cls).all()
 
     @classmethod
-    def id_from_name(cls, session, name: str) -> str:
-        if name in cls.__id_map:
-            return cls.__id_map[name]
-        type_id = session.query(cls.id).filter(cls.name == name).one().id
-        cls.__id_map[name] = type_id
-        return type_id
+    def cache_all(cls, session):
+        for e in cls.get_all(session):
+            cls.__id_map[e.id] = e
+            cls.__name_map[e.name] = e
+
+    @classmethod
+    def from_name(cls, session, name: str) -> EntityType:
+        if name in cls.__name_map:
+            return cls.__name_map[name]
+        e = session.query(cls.id).filter(cls.name == name).one()
+        cls.__name_map[name] = e
+        return e
+
+    @classmethod
+    def from_id(cls, session, id: str) -> EntityType:
+        if id in cls.__id_map:
+            return cls.__id_map[id]
+        e = session.query(cls.id).filter(cls.id == id).one()
+        cls.__id_map[id] = e
+        return e
 
 
 class EntityRelation(Base):
@@ -45,6 +63,7 @@ class EntityRelation(Base):
     target_entity: Entity = relationship('Entity', foreign_keys=[target_entity_id], backref=backref('relations_to'))
     relation = Column(String(64), nullable=False)
     active = Column(Boolean, nullable=False, default=True)
+    mutual = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, onupdate=datetime.utcnow)
 
@@ -89,6 +108,9 @@ class Entity(Base):
                                     foreign_keys=[EntityRelation.target_entity_id],
                                     backref=backref('entity_target', lazy='joined')
                                     )
+
+    def __repr__(self):
+        return self.full_name
 
     @property
     def full_name(self):
